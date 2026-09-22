@@ -9,6 +9,7 @@ import '../models/customer_model.dart';
 import '../models/product_model.dart';
 import '../models/price_list_model.dart';
 import '../models/invoice_model.dart';
+import '../models/pdf_template_model.dart';
 import '../models/settings_model.dart';
 
 class SupabaseService {
@@ -563,6 +564,27 @@ class SupabaseService {
         'mac_address': deviceId ?? '',
         'ip_address': ipAddress ?? '',
       });
+    } catch (_) {}
+  }
+
+  Future<PdfTemplateConfig> getPdfTemplate({required bool isChallan}) async {
+    final key = isChallan ? 'pdf_challan_template_config' : 'pdf_invoice_template_config';
+    try {
+      final res = await client.from('system_settings').select().eq('key', key).maybeSingle();
+      if (res != null && res['value'] != null) {
+        return PdfTemplateConfig.fromJson(res['value'].toString());
+      }
+    } catch (_) {}
+    return isChallan ? PdfTemplateConfig.defaultChallanTemplate() : PdfTemplateConfig.defaultInvoiceTemplate();
+  }
+
+  Future<void> savePdfTemplate(PdfTemplateConfig config, {required bool isChallan}) async {
+    final key = isChallan ? 'pdf_challan_template_config' : 'pdf_invoice_template_config';
+    try {
+      await client.from('system_settings').upsert({
+        'key': key,
+        'value': config.toJson(),
+      }, onConflict: 'key');
     } catch (_) {}
   }
 }

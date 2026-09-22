@@ -44,8 +44,6 @@ class _InvoiceCreateScreenState extends State<InvoiceCreateScreen> {
   // Notes
   final _notesController = TextEditingController();
   bool _noteEditorOpen = false;
-
-  bool _isManualInvoiceNo = false;
   DateTime _selectedDate = DateTime.now();
   CustomerMode _customerMode = CustomerMode.normal;
 
@@ -114,7 +112,6 @@ class _InvoiceCreateScreenState extends State<InvoiceCreateScreen> {
       if (editing != null) {
         // Edit mode
         _invoiceNoController.text = editing.invoiceNo;
-        _isManualInvoiceNo = true;
         _savedInvoiceNo = editing.invoiceNo;
         _selectedDate = DateTime.tryParse(editing.date) ?? DateTime.now();
 
@@ -478,7 +475,6 @@ class _InvoiceCreateScreenState extends State<InvoiceCreateScreen> {
     final nextNo = await _supabase.getNextInvoiceNumber();
     setState(() {
       _invoiceNoController.text = nextNo;
-      _isManualInvoiceNo = false;
       _itemRows = [_FormItemRow()];
     });
   }
@@ -627,7 +623,7 @@ class _InvoiceCreateScreenState extends State<InvoiceCreateScreen> {
                   const SizedBox(height: 4),
                   TextField(
                     controller: _invoiceNoController,
-                    readOnly: !_isManualInvoiceNo,
+                    readOnly: true,
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
@@ -637,10 +633,9 @@ class _InvoiceCreateScreenState extends State<InvoiceCreateScreen> {
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      suffixIcon: IconButton(
-                        icon: Icon(_isManualInvoiceNo ? Icons.lock_open : Icons.edit, size: 16),
-                        tooltip: _isManualInvoiceNo ? 'Manual entry enabled' : 'Click to edit manually',
-                        onPressed: () => setState(() => _isManualInvoiceNo = !_isManualInvoiceNo),
+                      suffixIcon: const Tooltip(
+                        message: 'System-generated invoice number (Protected)',
+                        child: Icon(Icons.lock_outline, size: 16, color: Color(0xFF059669)),
                       ),
                     ),
                   ),

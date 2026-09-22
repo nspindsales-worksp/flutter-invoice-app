@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:invoice_app/core/utils.dart';
 import 'package:invoice_app/models/invoice_item_model.dart';
 import 'package:invoice_app/models/invoice_model.dart';
+import 'package:invoice_app/models/pdf_template_model.dart';
 
 void main() {
   group('Invoice Number Generator Tests', () {
@@ -88,6 +89,27 @@ void main() {
     test('hashes password to SHA-256 hex correctly', () {
       final hash = AppUtils.hashPassword('Manha@0505');
       expect(hash, equals('88d0d01e3f0403234511f566f9039cc7e34c3a5e169163ec4bc9a3bc40fa273a'));
+    });
+  });
+
+  group('PDF Template Model Tests', () {
+    test('serializes and deserializes invoice template correctly', () {
+      final tpl = PdfTemplateConfig.defaultInvoiceTemplate();
+      final jsonStr = tpl.toJson();
+      final restored = PdfTemplateConfig.fromJson(jsonStr);
+
+      expect(restored.elements.length, equals(tpl.elements.length));
+      expect(restored.elements.first.id, equals('company-header'));
+      expect(restored.elements.first.visible, isTrue);
+    });
+
+    test('serializes and deserializes challan template correctly', () {
+      final tpl = PdfTemplateConfig.defaultChallanTemplate();
+      final jsonStr = tpl.toJson();
+      final restored = PdfTemplateConfig.fromJson(jsonStr);
+
+      expect(restored.elements.length, equals(tpl.elements.length));
+      expect(restored.elements.any((e) => e.id == 'title'), isTrue);
     });
   });
 }
