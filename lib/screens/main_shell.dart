@@ -24,7 +24,6 @@ class MainShell extends StatelessWidget {
     final user = auth.user;
 
     final isAdmin = user?.isAdmin ?? false;
-    final isSuperAdmin = user?.isSuperAdmin ?? false;
 
     // Build accessible navigation items based on role & permissions
     final navItems = <_NavItem>[
@@ -39,9 +38,9 @@ class MainShell extends StatelessWidget {
         _NavItem(page: AppPage.syncData, title: 'Sync Data', icon: Icons.sync_outlined, activeIcon: Icons.sync, adminOnly: true),
       if (isAdmin)
         _NavItem(page: AppPage.adminSettings, title: 'Admin Settings', icon: Icons.settings_outlined, activeIcon: Icons.settings, adminOnly: true),
-      if (isSuperAdmin)
+      if (isAdmin)
         _NavItem(page: AppPage.userControlLog, title: 'User Control Log', icon: Icons.shield_outlined, activeIcon: Icons.shield, adminOnly: true),
-      if (isSuperAdmin)
+      if (isAdmin)
         _NavItem(page: AppPage.pdfDesigner, title: 'PDF Designer', icon: Icons.palette_outlined, activeIcon: Icons.palette, adminOnly: true),
     ];
 
