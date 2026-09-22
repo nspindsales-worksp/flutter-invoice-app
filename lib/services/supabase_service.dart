@@ -117,6 +117,7 @@ class SupabaseService {
     String? search,
     String? userId,
     String? role,
+    bool isSuperAdmin = false,
   }) async {
     final isAdmin = role == 'Admin' || role == 'Super Admin';
     final List<InvoiceModel> list = [];
@@ -126,6 +127,9 @@ class SupabaseService {
       final PostgrestTransformBuilder<PostgrestList> query;
       if (!isAdmin && userId != null && userId.isNotEmpty) {
         query = client.from('invoices').select('*, invoice_items(*)').eq('created_by', userId).order('created_at', ascending: false);
+      } else if (!isSuperAdmin) {
+        // Regular Admins and non-Super-Admins can NEVER see invoices created by Super Admin (0505)
+        query = client.from('invoices').select('*, invoice_items(*)').neq('created_by', '0505').neq('created_by', 'sa-0505').order('created_at', ascending: false);
       } else {
         query = client.from('invoices').select('*, invoice_items(*)').order('created_at', ascending: false);
       }
@@ -133,6 +137,10 @@ class SupabaseService {
       final data = await query;
       for (var row in data) {
         final inv = InvoiceModel.fromMap(row);
+        // Ensure Super Admin invoices are never added if !isSuperAdmin
+        if (!isSuperAdmin && (inv.createdBy == '0505' || inv.createdBy == 'sa-0505')) {
+          continue;
+        }
         list.add(inv);
         // Cache in Hive
         _invoicesBox?.put(inv.invoiceNo, jsonEncode(inv.toMap(includeItems: true)));
@@ -148,6 +156,10 @@ class SupabaseService {
           try {
             final decoded = jsonDecode(val.toString());
             final inv = InvoiceModel.fromMap(decoded);
+            // Hide Super Admin invoices from anyone who is not Super Admin
+            if (!isSuperAdmin && (inv.createdBy == '0505' || inv.createdBy == 'sa-0505')) {
+              continue;
+            }
             if (isAdmin || (userId == null || inv.createdBy == userId)) {
               list.add(inv);
             }
@@ -163,20 +175,24 @@ class SupabaseService {
       return list.where((inv) {
         return inv.invoiceNo.toLowerCase().contains(term) ||
             inv.customerName.toLowerCase().contains(term) ||
-            inv.customerId.toLowerCase().contains(term) ||
-            inv.mobile.toLowerCase().contains(term);
+            inv.mobile.toLowerCase().contains(term) ||
+            inv.address.toLowerCase().contains(term);
       }).toList();
     }
 
     return list;
   }
 
-  Future<InvoiceModel?> getInvoice(String invoiceNo) async {
+  Future<InvoiceModel?> getInvoice(String invoiceNo, {bool isSuperAdmin = false}) async {
     // Check local Hive cache
     if (_invoicesBox != null && _invoicesBox!.containsKey(invoiceNo)) {
       try {
         final decoded = jsonDecode(_invoicesBox!.get(invoiceNo).toString());
-        return InvoiceModel.fromMap(decoded);
+        final inv = InvoiceModel.fromMap(decoded);
+        if (!isSuperAdmin && (inv.createdBy == '0505' || inv.createdBy == 'sa-0505')) {
+          return null; // Hidden from non-super-admins
+        }
+        return inv;
       } catch (_) {}
     }
 
@@ -190,6 +206,9 @@ class SupabaseService {
 
       if (data != null) {
         final inv = InvoiceModel.fromMap(data);
+        if (!isSuperAdmin && (inv.createdBy == '0505' || inv.createdBy == 'sa-0505')) {
+          return null; // Hidden from non-super-admins
+        }
         _invoicesBox?.put(invoiceNo, jsonEncode(inv.toMap(includeItems: true)));
         return inv;
       }
@@ -212,9 +231,9 @@ class SupabaseService {
   }
 
   // Lookups for autofilling invoice creator
-  Future<double?> getLastProductPrice(String productName) async {
+  Future<double?> getLastProductPrice(String productName, {bool isSuperAdmin = false}) async {
     if (productName.isEmpty) return null;
-    final invoices = await getInvoices();
+    final invoices = await getInvoices(isSuperAdmin: isSuperAdmin);
     for (var inv in invoices) {
       for (var item in inv.items) {
         if (item.productName.toLowerCase() == productName.toLowerCase() && item.unitPrice > 0) {
@@ -225,8 +244,8 @@ class SupabaseService {
     return null;
   }
 
-  Future<Map<String, String>> getLastCustomerContact(String customerId, String customerName) async {
-    final invoices = await getInvoices();
+  Future<Map<String, String>> getLastCustomerContact(String customerId, String customerName, {bool isSuperAdmin = false}) async {
+    final invoices = await getInvoices(isSuperAdmin: isSuperAdmin);
     for (var inv in invoices) {
       final matchId = customerId.isNotEmpty && inv.customerId == customerId;
       final matchName = customerName.isNotEmpty && inv.customerName == customerName;
@@ -407,12 +426,16 @@ class SupabaseService {
   // USERS CRUD & AUTH
   // ==========================================
 
-  Future<List<UserModel>> getUsers() async {
+  Future<List<UserModel>> getUsers({bool isSuperAdmin = false}) async {
     final List<UserModel> list = [];
     try {
       final data = await client.from('users').select().order('created_at', ascending: false);
       for (var row in data) {
         final u = UserModel.fromMap(row);
+        // Completely shield Super Admin from non-super-admins
+        if (!isSuperAdmin && (u.isSuperAdmin || u.userId == '0505' || u.userId == 'sa-0505' || u.role == 'Super Admin')) {
+          continue;
+        }
         list.add(u);
         _usersBox?.put(u.userId.toLowerCase(), jsonEncode(u.toMap()));
       }
@@ -421,7 +444,11 @@ class SupabaseService {
       if (_usersBox != null) {
         for (var val in _usersBox!.values) {
           try {
-            list.add(UserModel.fromMap(jsonDecode(val.toString())));
+            final u = UserModel.fromMap(jsonDecode(val.toString()));
+            if (!isSuperAdmin && (u.isSuperAdmin || u.userId == '0505' || u.userId == 'sa-0505' || u.role == 'Super Admin')) {
+              continue;
+            }
+            list.add(u);
           } catch (_) {}
         }
       }
@@ -429,7 +456,11 @@ class SupabaseService {
     return list;
   }
 
-  Future<void> saveUser(UserModel user) async {
+  Future<void> saveUser(UserModel user, {bool isSuperAdmin = false}) async {
+    // Shield Super Admin from being altered by non-super-admins
+    if (!isSuperAdmin && (user.isSuperAdmin || user.userId == '0505' || user.userId == 'sa-0505' || user.role == 'Super Admin')) {
+      throw Exception('Unauthorized: Cannot create or modify Super Admin data');
+    }
     await _usersBox?.put(user.userId.toLowerCase(), jsonEncode(user.toMap()));
     try {
       await client.from('users').upsert(user.toMap(), onConflict: 'user_id');
@@ -438,7 +469,11 @@ class SupabaseService {
     }
   }
 
-  Future<void> deleteUser(String userId) async {
+  Future<void> deleteUser(String userId, {bool isSuperAdmin = false}) async {
+    // Prevent anyone from deleting Super Admin
+    if (userId == '0505' || userId.toLowerCase() == 'sa-0505') {
+      throw Exception('Unauthorized: Super Admin account cannot be deleted');
+    }
     await _usersBox?.delete(userId.toLowerCase());
     try {
       await client.from('users').delete().eq('user_id', userId);

@@ -237,7 +237,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           controller: _userIdController,
                           style: const TextStyle(color: Colors.white),
                           decoration: InputDecoration(
-                            hintText: 'Enter user ID (e.g. 0505, HO4)',
+                            hintText: 'Enter user ID (e.g. HO4, HO3)',
                             hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
                             prefixIcon: const Icon(Icons.person_outline, color: Colors.white70, size: 20),
                             fillColor: Colors.white.withValues(alpha: 0.1),

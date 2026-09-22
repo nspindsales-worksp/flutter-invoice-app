@@ -464,7 +464,8 @@ class _InvoiceCreateScreenState extends State<InvoiceCreateScreen> {
 
                       // Check last contact info from previous invoices if empty
                       if (customer.address.isEmpty || customer.mobile.isEmpty) {
-                        final last = await _supabase.getLastCustomerContact(customer.customerId, customer.name);
+                        final isSuperAdmin = context.read<AuthProvider>().user?.isSuperAdmin ?? false;
+                        final last = await _supabase.getLastCustomerContact(customer.customerId, customer.name, isSuperAdmin: isSuperAdmin);
                         if (last['address']?.isNotEmpty == true && _customerAddressController.text.isEmpty) {
                           _customerAddressController.text = last['address']!;
                         }
@@ -626,7 +627,8 @@ class _InvoiceCreateScreenState extends State<InvoiceCreateScreen> {
                     row.rateController.text = product.standardRate.toStringAsFixed(2);
 
                     // Check last price used if available
-                    final lastPrice = await _supabase.getLastProductPrice(product.name);
+                    final isSuperAdmin = context.read<AuthProvider>().user?.isSuperAdmin ?? false;
+                    final lastPrice = await _supabase.getLastProductPrice(product.name, isSuperAdmin: isSuperAdmin);
                     if (lastPrice != null && lastPrice > 0) {
                       row.rateController.text = lastPrice.toStringAsFixed(2);
                     }

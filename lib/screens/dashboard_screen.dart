@@ -41,6 +41,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final invoices = await supabase.getInvoices(
         userId: user?.userId,
         role: user?.role,
+        isSuperAdmin: user?.isSuperAdmin ?? false,
       );
 
       double revenue = 0.0;

@@ -44,6 +44,7 @@ class _InvoiceHistoryScreenState extends State<InvoiceHistoryScreen> {
         search: search,
         userId: user?.userId,
         role: user?.role,
+        isSuperAdmin: user?.isSuperAdmin ?? false,
       );
       if (mounted) {
         setState(() {

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../core/constants.dart';
 import '../core/utils.dart';
 import '../models/settings_model.dart';
 import '../models/user_model.dart';
+import '../providers/auth_provider.dart';
 import '../services/supabase_service.dart';
 
 class AdminSettingsScreen extends StatefulWidget {
@@ -63,8 +65,11 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> with SingleTi
 
   Future<void> _loadAll() async {
     setState(() => _isLoading = true);
+    final authUser = context.read<AuthProvider>().user;
+    final isSuperAdmin = authUser?.isSuperAdmin ?? false;
+
     try {
-      final u = await _supabase.getUsers();
+      final u = await _supabase.getUsers(isSuperAdmin: isSuperAdmin);
       final f = await _supabase.getAdminFeatures();
       final s = await _supabase.getSettings();
 
@@ -167,6 +172,13 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> with SingleTi
                   final uId = userIdController.text.trim();
                   if (uId.isEmpty) return;
 
+                  if (uId == '0505' || uId.toLowerCase() == 'sa-0505') {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Cannot create or edit reserved system user ID')),
+                    );
+                    return;
+                  }
+
                   String passwordHash = existing?.password ?? '';
                   if (passwordController.text.trim().isNotEmpty) {
                     passwordHash = AppUtils.hashPassword(passwordController.text.trim());
@@ -191,7 +203,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> with SingleTi
                     expiresAt: exp,
                   );
 
-                  await _supabase.saveUser(user);
+                  final authUser = context.read<AuthProvider>().user;
+                  await _supabase.saveUser(user, isSuperAdmin: authUser?.isSuperAdmin ?? false);
                   if (ctx.mounted) Navigator.pop(ctx);
                   _loadAll();
                 },
@@ -205,7 +218,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> with SingleTi
   }
 
   Future<void> _deleteUser(UserModel u) async {
-    if (u.isSuperAdmin) {
+    if (u.isSuperAdmin || u.userId == '0505' || u.userId == 'sa-0505') {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cannot delete Super Admin account!')),
       );
@@ -228,8 +241,9 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> with SingleTi
       ),
     );
 
-    if (confirm == true) {
-      await _supabase.deleteUser(u.userId);
+    if (confirm == true && mounted) {
+      final authUser = context.read<AuthProvider>().user;
+      await _supabase.deleteUser(u.userId, isSuperAdmin: authUser?.isSuperAdmin ?? false);
       _loadAll();
     }
   }

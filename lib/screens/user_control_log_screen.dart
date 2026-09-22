@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/constants.dart';
+import '../providers/auth_provider.dart';
 import '../services/supabase_service.dart';
 
 class UserControlLogScreen extends StatefulWidget {
@@ -23,16 +26,40 @@ class _UserControlLogScreenState extends State<UserControlLogScreen> {
 
   Future<void> _loadLogs() async {
     setState(() => _isLoading = true);
+    final user = context.read<AuthProvider>().user;
+    final isSuperAdmin = user?.isSuperAdmin ?? false;
+
     try {
-      final data = await _supabase.client
-          .from('user_activity_logs')
-          .select()
-          .order('created_at', ascending: false)
-          .limit(100);
+      final PostgrestTransformBuilder<PostgrestList> query;
+      if (!isSuperAdmin) {
+        query = _supabase.client
+            .from('user_activity_logs')
+            .select()
+            .neq('user_id', '0505')
+            .neq('user_id', 'sa-0505')
+            .order('created_at', ascending: false)
+            .limit(100);
+      } else {
+        query = _supabase.client
+            .from('user_activity_logs')
+            .select()
+            .order('created_at', ascending: false)
+            .limit(100);
+      }
+
+      final data = await query;
 
       if (mounted) {
         setState(() {
-          _logs = List<Map<String, dynamic>>.from(data);
+          var list = List<Map<String, dynamic>>.from(data);
+          if (!isSuperAdmin) {
+            list = list.where((l) {
+              final uid = l['user_id']?.toString() ?? '';
+              final uname = l['user_name']?.toString().toLowerCase() ?? '';
+              return uid != '0505' && uid != 'sa-0505' && !uname.contains('super admin');
+            }).toList();
+          }
+          _logs = list;
           _isLoading = false;
         });
       }
